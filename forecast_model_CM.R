@@ -1,10 +1,21 @@
+
+# ---
+  # Camille Minaudo
+  # title: "NEON forecast challenge - GLEON2022"
+  # date: "Nov 2022"
+# ---
+  
+
+cat("\014")
+rm(list = ls())
+
 library(tidyverse)
 library(neon4cast)
 library(lubridate)
 library(rMR)
 
 forecast_date <- Sys.Date()
-noaa_date <- Sys.Date() - days(1)  #Need to use yesterday's NOAA forecast because today's is not available yet
+noaa_date <- Sys.Date() - days(2)  #Need to use yesterday's NOAA forecast because today's is not available yet
 
 #Step 0: Define team name and team members 
 
@@ -16,12 +27,22 @@ target <- readr::read_csv("https://data.ecoforecast.org/neon4cast-targets/aquati
 
 site_data <- readr::read_csv("https://raw.githubusercontent.com/eco4cast/neon4cast-targets/main/NEON_Field_Site_Metadata_20220412.csv") |> 
   dplyr::filter(aquatics == 1)
+site_data <- site_data %>%
+  filter(field_site_subtype == 'Lake')
+
+target <- target %>%
+  filter(site_id %in% site_data$field_site_id)
+
+# selecting only water temperature and oxygen as target variables to predict
+target <- target %>%
+  filter(variable == 'temperature' | variable == 'oxygen')
+
 
 #Step 2: Get drivers
 
 df_past <- neon4cast::noaa_stage3()
 
-df_future <- neon4cast::noaa_stage2(cycle = 0)
+df_future <- neon4cast::noaa_stage2()
 
 sites <- unique(target$site_id)
 
@@ -72,15 +93,17 @@ lag <- function(x,lag) {
     dplyr::rename(ensemble = parameter) %>%
     dplyr::select(datetime, prediction, ensemble) |>
     dplyr::collect()
+  
 
-  noaa_future <- df_future |>
-    dplyr::filter(site_id == sites[i],
-                  reference_dateteime == as.character(noaa_date),
-                  datetime >= lubridate::as_datetime(forecast_date),
-                  variable == "air_temperature") |>
-    dplyr::rename(ensemble = parameter) %>%
-    dplyr::select(datetime, prediction, ensemble) |>
+  variables <- c("air_temperature")
+  
+  noaa_future <- df_future |> 
+    dplyr::filter(reference_datetime == noaa_date,
+                  datetime >= forecast_date,
+                  site_id %in% sites[i],
+                  variable %in% variables) |> 
     dplyr::collect()
+  
 
   # Aggregate (to day) and convert units of drivers
 
@@ -91,12 +114,27 @@ lag <- function(x,lag) {
     rename(datetime = date) %>%
     mutate(air_temperature = air_temperature - 273.15)
 
-  noaa_future_site <- noaa_future %>%
-    mutate(datetime = as_date(datetime)) %>%
-    group_by(datetime, ensemble) %>%
-    summarize(air_temperature = mean(prediction), .groups = "drop") |>
-    mutate(air_temperature = air_temperature - 273.15) |>
-    select(datetime, air_temperature, ensemble)
+  
+  noaa_future_daily <- noaa_future |> 
+    mutate(datetime = as_date(datetime)) |> 
+    # mean daily forecasts at each site per ensemble
+    group_by(datetime, site_id, parameter, variable) |> 
+    summarize(prediction = mean(prediction)) |>
+    pivot_wider(names_from = variable, values_from = prediction) |>
+    # convert to Celsius
+    mutate(air_temperature = air_temperature - 273.15) |> 
+    select(datetime, site_id, air_temperature, parameter)
+  
+  
+  noaa_future_site <- noaa_future_daily |> 
+    filter(site_id == sites[i])
+  
+  # noaa_future_site <- noaa_future %>%
+  #   mutate(datetime = as_date(datetime)) %>%
+  #   group_by(datetime, ensemble) %>%
+  #   summarize(air_temperature = mean(prediction), .groups = "drop") |>
+  #   mutate(air_temperature = air_temperature - 273.15) |>
+  #   select(datetime, air_temperature, ensemble)
 
   #Merge in past NOAA data into the targets file, matching by date.
   site_target <- target |>
@@ -106,7 +144,7 @@ lag <- function(x,lag) {
     pivot_wider(names_from = "variable", values_from = "observation") |>
     left_join(noaa_past_mean, by = c("datetime"))
 
-  #Check that temperature and oxygen are avialable at site
+  #Check that temperature and oxygen are available at site
   if("temperature" %in% names(site_target) & "oxygen" %in% names(site_target)){
 
     if(length(which(!is.na(site_target$air_temperature) & !is.na(site_target$temperature))) > 0){
@@ -156,12 +194,21 @@ lag <- function(x,lag) {
   }
 }
 
-forecast <- forecast |>
-  mutate(reference_datetime = forecast_date,
-         family = "ensemble",
-         model_id = model_id) |>
-  rename(parameter = ensemble) |>
+
+my_forecast_EFI <- forecast %>%
+  mutate(model_id = model_id,
+         reference_datetime = as_date(min(datetime)) - days(2),
+         family = 'ensemble',
+         parameter = as.character(variable)) %>%
   select(model_id, datetime, reference_datetime, site_id, family, parameter, variable, prediction)
+
+
+# forecast <- forecast |>
+#   mutate(reference_datetime = forecast_date,
+#          family = "ensemble",
+#          model_id = model_id) |>
+#   rename(parameter = ensemble) |>
+#   select(model_id, datetime, reference_datetime, site_id, family, parameter, variable, prediction)
 
 #Visualize forecast.  Is it reasonable?
 #forecast %>%
@@ -171,11 +218,15 @@ forecast <- forecast |>
 
 #Forecast output file name in standards requires for Challenge.
 # csv.gz means that it will be compressed
-file_date <- forecast$reference_datetime[1]
+file_date <- my_forecast_EFI$reference_datetime[1]
 forecast_file <- paste0("aquatics","-",file_date,"-",model_id,".csv.gz")
 
 #Write csv to disk
-write_csv(forecast, forecast_file)
+setwd("C:/Projects/gleon22/neon4cast/")
+
+write_csv(my_forecast_EFI, forecast_file)
+
+neon4cast::forecast_output_validator(forecast_file)
 
 # Step 4: Submit forecast!
 
