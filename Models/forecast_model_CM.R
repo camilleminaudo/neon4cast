@@ -223,7 +223,7 @@ file_date <- my_forecast_EFI$reference_datetime[1]
 forecast_file <- paste0("aquatics","-",file_date,"-",model_id,".csv.gz")
 
 #Write csv to disk
-setwd("C:/Projects/gleon22/neon4cast/")
+setwd("~/my_forecasts")
 
 write_csv(my_forecast_EFI, forecast_file)
 
