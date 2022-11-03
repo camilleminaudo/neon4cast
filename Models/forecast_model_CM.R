@@ -195,6 +195,9 @@ lag <- function(x,lag) {
 }
 
 
+# ------------ save and submit  ---------------
+
+
 my_forecast_EFI <- forecast %>%
   mutate(model_id = model_id,
          reference_datetime = as_date(min(datetime)) - days(2),
@@ -211,10 +214,8 @@ my_forecast_EFI <- forecast %>%
 #   select(model_id, datetime, reference_datetime, site_id, family, parameter, variable, prediction)
 
 #Visualize forecast.  Is it reasonable?
-#forecast %>%
-#  ggplot(aes(x = time, y = prediction, group = ensemble)) +
-#  geom_line() +
-#  facet_grid(variable~site_id, scale ="free")
+
+ggplot(my_forecast_EFI, aes(datetime, prediction, colour = site_id))+geom_path()+theme_bw()+facet_wrap(variable~., scales = "free_y")
 
 #Forecast output file name in standards requires for Challenge.
 # csv.gz means that it will be compressed
