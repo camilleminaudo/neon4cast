@@ -162,6 +162,11 @@ lag <- function(x,lag) {
       
       # prediction: using today's obs to predict tomorrow
       noaa_future_site$temperature <- noaa_future_site$lag <- NA * noaa_future_site$air_temperature
+      
+      # first, using model to predict temperature until supposed day of observation
+      temperature_extended <- ipredict(model = fit, newdata = site_target)
+      site_target$temperature[is.na(site_target$temperature)] <- temperature_extended[is.na(site_target$temperature)]
+      
       noaa_future_site$lag[1] <- tail(site_target$temperature[!is.na(site_target$temperature)], 1)
       
       forecasted_temperature <- ipredict(model = fit, newdata = noaa_future_site)
@@ -223,7 +228,7 @@ file_date <- my_forecast_EFI$reference_datetime[1]
 forecast_file <- paste0("aquatics","-",file_date,"-",model_id,".csv.gz")
 
 #Write csv to disk
-setwd("~/my_forecasts")
+# setwd("~/my_forecasts")
 
 write_csv(my_forecast_EFI, forecast_file)
 
