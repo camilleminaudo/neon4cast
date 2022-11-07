@@ -31,11 +31,11 @@ site_data <- site_data %>%
   filter(field_site_subtype == 'Lake')
 
 target <- target %>%
-  dplyr::filter()(site_id %in% site_data$field_site_id)
+  dplyr::filter(site_id %in% site_data$field_site_id)
 
 # selecting only water temperature and oxygen as target variables to predict
 target <- target %>%
-  dplyr::filter()(variable == 'temperature' | variable == 'oxygen')
+  dplyr::filter(variable == 'temperature' | variable == 'oxygen')
 
 
 #Step 2: Get drivers
@@ -87,6 +87,7 @@ lag <- function(x,lag) {
   # Get site information for elevation
   site_info <- site_data %>% dplyr::filter(field_site_id == sites[i])
 
+  print("loading past data")
   noaa_past <- df_past |>
     dplyr::filter(site_id == sites[i],
                   variable == "air_temperature") |>
@@ -94,7 +95,11 @@ lag <- function(x,lag) {
     dplyr::select(datetime, prediction, ensemble) |>
     dplyr::collect()
   
+  print("...done!")
 
+  
+  print("loading future data")
+  
   variables <- c("air_temperature")
   
   noaa_future <- df_future |> 
@@ -103,10 +108,11 @@ lag <- function(x,lag) {
                   site_id %in% sites[i],
                   variable %in% variables) |> 
     dplyr::collect()
-  
+  print("...done!")
 
   # Aggregate (to day) and convert units of drivers
-
+  print("aggregate to daily")
+  
   noaa_past_mean <- noaa_past %>%
     mutate(date = as_date(datetime)) %>%
     group_by(date) %>%
@@ -124,10 +130,10 @@ lag <- function(x,lag) {
     # convert to Celsius
     mutate(air_temperature = air_temperature - 273.15) |> 
     select(datetime, site_id, air_temperature, parameter)
-  
+  print("...done!")
   
   noaa_future_site <- noaa_future_daily |> 
-    dplyr::filter()(site_id == sites[i])
+    dplyr::filter(site_id == sites[i])
   
   # noaa_future_site <- noaa_future %>%
   #   mutate(datetime = as_date(datetime)) %>%
@@ -137,18 +143,23 @@ lag <- function(x,lag) {
   #   select(datetime, air_temperature, ensemble)
 
   #Merge in past NOAA data into the targets file, matching by date.
+  print("Merge in past NOAA data into the targets file")
   site_target <- target |>
     select(datetime, site_id, variable, observation) |>
     dplyr::filter(variable %in% c("temperature", "oxygen"),
            site_id == sites[i]) |>
     pivot_wider(names_from = "variable", values_from = "observation") |>
     left_join(noaa_past_mean, by = c("datetime"))
-
+  
+  print("...done!")
+  
   #Check that temperature and oxygen are available at site
   if("temperature" %in% names(site_target) & "oxygen" %in% names(site_target)){
 
     if(length(which(!is.na(site_target$air_temperature) & !is.na(site_target$temperature))) > 0){
-
+      
+      print("Build model")
+      
       #Fit linear model based on past data: water temperature = m * air temperature + b
       # fit <- lm(site_target$temperature~site_target$air_temperature)
       
@@ -158,6 +169,7 @@ lag <- function(x,lag) {
       
 
       #use linear regression to forecast water temperature for each ensemble member
+      print("Predict temperature")
       # forecasted_temperature <- fit$coefficients[1] + fit$coefficients[2] * noaa_future_site$air_temperature
       
       # prediction: using today's obs to predict tomorrow
@@ -173,6 +185,7 @@ lag <- function(x,lag) {
       
 
       #use forecasted temperature to predict oyxgen by assuming that oxygen is saturated.
+      print("Predict oxygen")
       forecasted_oxygen <- rMR::Eq.Ox.conc(forecasted_temperature, elevation.m = ,site_info$field_mean_elevation_m,
                                            bar.press = NULL,
                                            bar.units = NULL,
@@ -195,6 +208,7 @@ lag <- function(x,lag) {
 
       #Build site level dataframe.  Note we are not forecasting chla
       forecast <- dplyr::bind_rows(forecast, temperature, oxygen)
+      print("<=== done for this site ===>")
     }
   }
 }
