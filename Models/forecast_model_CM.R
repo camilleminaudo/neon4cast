@@ -31,11 +31,11 @@ site_data <- site_data %>%
   filter(field_site_subtype == 'Lake')
 
 target <- target %>%
-  filter(site_id %in% site_data$field_site_id)
+  dplyr::filter()(site_id %in% site_data$field_site_id)
 
 # selecting only water temperature and oxygen as target variables to predict
 target <- target %>%
-  filter(variable == 'temperature' | variable == 'oxygen')
+  dplyr::filter()(variable == 'temperature' | variable == 'oxygen')
 
 
 #Step 2: Get drivers
@@ -127,7 +127,7 @@ lag <- function(x,lag) {
   
   
   noaa_future_site <- noaa_future_daily |> 
-    filter(site_id == sites[i])
+    dplyr::filter()(site_id == sites[i])
   
   # noaa_future_site <- noaa_future %>%
   #   mutate(datetime = as_date(datetime)) %>%
