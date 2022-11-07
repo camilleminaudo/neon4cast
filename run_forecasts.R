@@ -1,7 +1,7 @@
 
 
 # my scripts
-source("~/Models/forecast_model_CM.R")
+source("./Models/forecast_model_CM.R")
 message('My dynamic model successfully submitted!')
 
 
