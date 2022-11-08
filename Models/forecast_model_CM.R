@@ -12,7 +12,7 @@
 library(tidyverse)
 library(neon4cast)
 library(lubridate)
-library(rMR)
+# library(rMR)
 
 forecast_date <- Sys.Date()
 noaa_date <- Sys.Date() - days(2)  #Need to use yesterday's NOAA forecast because today's is not available yet
@@ -72,8 +72,8 @@ ipredict <-function(model,newdata) {
 
 #a function to calculate lags
 lagmatrix <- function(x,max.lag){embed(c(rep(NA,max.lag),x),max.lag)}
-lag <- function(x,lag) {
-  out<-lagmatrix(x,lag+1)[,lag]
+get_lag <- function(x,mylag) {
+  out<-lagmatrix(x,mylag+1)[,mylag]
   return(out[1:length(out)-1])
 }
 
@@ -164,7 +164,7 @@ lag <- function(x,lag) {
       # fit <- lm(site_target$temperature~site_target$air_temperature)
       
       # linear fit with lag of 1 day : using today's obs to predict tomorrow
-      site_target$lag <- I(lag(site_target$temperature,1))
+      site_target$lag <- I(get_lag(site_target$temperature,1))
       fit <- lm(data = site_target, temperature ~ air_temperature+lag)
       
 
