@@ -12,7 +12,7 @@
 library(tidyverse)
 library(neon4cast)
 library(lubridate)
-# library(rMR)
+library(rMR)
 
 forecast_date <- Sys.Date()
 noaa_date <- Sys.Date() - days(2)  #Need to use yesterday's NOAA forecast because today's is not available yet
