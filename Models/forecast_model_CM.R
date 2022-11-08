@@ -3,6 +3,7 @@
   # Camille Minaudo
   # title: "NEON forecast challenge - GLEON2022"
   # date: "Nov 2022"
+  # https://github.com/camilleminaudo/neon4cast
 # ---
   
 
